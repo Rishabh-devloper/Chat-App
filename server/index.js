@@ -5,10 +5,11 @@ import connectDB from "./lib/db.js";
 import cookieParser from "cookie-parser";
 import messageRouter from "./routes/message.route.js";
 import cors from "cors";
-import { app, server } from "./lib/socket.js";
+import {  server } from "./lib/socket.js";
 import path from "path";
 
 dotenv.config();
+const app = express()
 
 
 const PORT = process.env.PORT || 3000;
@@ -25,14 +26,16 @@ app.use(cors({
 app.use('/api/auth', authRouter); 
 app.use('/api/messages', messageRouter);
 
+// This must come after all API routes
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, "../client/dist")));
 
-  // FIXED: added (req, res)
-  app.get('*', (req, res) => {
+  // Only handle non-API routes for frontend SPA routing
+  app.get(/^\/(?!api).*/, (req, res) => {
     res.sendFile(path.join(__dirname, "../client", "dist", "index.html"));
   });
 }
+
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
