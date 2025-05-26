@@ -5,15 +5,17 @@ import connectDB from "./lib/db.js";
 import cookieParser from "cookie-parser";
 import messageRouter from "./routes/message.route.js";
 import cors from "cors";
-import {  server } from "./lib/socket.js";
+import { app ,  server } from "./lib/socket.js";
 import path from "path";
 
 dotenv.config();
-const app = express()
-
-
 const PORT = process.env.PORT || 3000;
-const __dirname = path.resolve();
+
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 app.use(express.json({ limit: "20mb" })); 
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
@@ -28,13 +30,13 @@ app.use('/api/messages', messageRouter);
 
 // This must come after all API routes
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, "../client/dist")));
+  app.use(express.static(path.join(__dirname, '../client/dist')));
 
-  // Only handle non-API routes for frontend SPA routing
   app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(__dirname, "../client", "dist", "index.html"));
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
 }
+
 
 
 server.listen(PORT, () => {
