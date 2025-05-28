@@ -8,9 +8,11 @@ const server = createServer(app);
 const io = new Server(server, {
     cors: {
         origin: process.env.NODE_ENV === "production" 
-            ? "https://chat-app-eight-vert.vercel.app"
+            ? "https://chat-c6dscne8m-rishabh-mishras-projects-5723e48a.vercel.app"
             : "http://localhost:5173",
-        credentials: true
+        credentials: true,
+        methods: ['GET', 'POST'],
+        allowedHeaders: ['Content-Type', 'Authorization']
     }
 })
 

@@ -2,128 +2,152 @@ import { genrateToken } from '../lib/utils.js'
 import User from '../model/user.model.js'
 import bcrypt from 'bcryptjs'
 import cloudinary from '../lib/cloudinary.js';
+import jwt from "jsonwebtoken";
+import { v2 as cloudinaryV2 } from "cloudinary";
+
+cloudinaryV2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export const signup = async (req, res) => {
-    const { email, fullName, password } = req.body;
+    const { fullName, email, password } = req.body;
     try {
-        // Validate password length
-        if (password.length < 6) {
-            return res.status(400).json({ message: "Password must be at least 6 characters" });
+        if (!fullName || !email || !password) {
+            return res.status(400).json({ message: "All fields are required" });
         }
 
-        // Check if the user already exists
+        if (password.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        }
+
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ message: "User already exists" });
         }
 
-        // Hash the password
-        const genSalt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, genSalt);
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create a new user
         const newUser = new User({
-            email,
             fullName,
+            email,
             password: hashedPassword,
         });
 
-        // Save the user to the database
         await newUser.save();
 
-        // Generate a token and set it as a cookie
-        genrateToken(newUser._id, res);
+        const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, {
+            expiresIn: "15d",
+        });
 
-        // Respond with the newly created user's data
-        return res.status(201).json({
-            _id: newUser._id,
-            email: newUser.email,
-            fullName: newUser.fullName,
-            profilePic: newUser.profilePic,
+        res.cookie("jwt", token, {
+            httpOnly: true,
+            maxAge: 15 * 24 * 60 * 60 * 1000,
+            sameSite: "strict",
+        });
+
+        res.status(201).json({
+            user: {
+                _id: newUser._id,
+                fullName: newUser.fullName,
+                email: newUser.email,
+                profilePic: newUser.profilePic,
+            },
         });
     } catch (error) {
-        console.log("Login error: ", error.message);
+        console.log("Error in signup controller:", error.message);
         res.status(500).json({ message: "Internal server error" });
     }
 };
+
 export const login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await User.findOne({email})
-        if (!user) {
-            return res.status(400).json({ message: "Invalid credentials" });
+        if (!email || !password) {
+            return res.status(400).json({ message: "All fields are required" });
         }
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: "Invalid password" });
-        }
-        // Generate a token and set it as a cookie
-        genrateToken(user._id, res);
-        // Respond with the user's data
-        return res.status(200).json({
-            _id: user._id,
-            email: user.email,
-            fullName: user.fullName,
-            profilePic: user.profilePic,
-        });
-    }
-    // Handle any errors that occur during the process
-    catch (error) {
-        console.log("Login error: ", error.message);
-        res.status(500).json({ message: "Internal server error" });
 
-        
-    } 
-}
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: "Invalid email or password" });
+        }
+
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return res.status(400).json({ message: "Invalid email or password" });
+        }
+
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+            expiresIn: "15d",
+        });
+
+        res.cookie("jwt", token, {
+            httpOnly: true,
+            maxAge: 15 * 24 * 60 * 60 * 1000,
+            sameSite: "strict",
+        });
+
+        res.status(200).json({
+            user: {
+                _id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+                profilePic: user.profilePic,
+            },
+        });
+    } catch (error) {
+        console.log("Error in login controller:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 export const logout = async (req, res) => {
     try {
-        res.cookie("jwt", "", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 0, // Set maxAge to 0 to delete the cookie
-        });
-        return res.status(200).json({ message: "Logged out successfully" });
-        
+        res.cookie("jwt", "", { maxAge: 0 });
+        res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
-        console.log("Logout error: ", error.message);
+        console.log("Error in logout controller:", error.message);
         res.status(500).json({ message: "Internal server error" });
-        
     }
-}
-
+};
 
 export const updateProfile = async (req, res) => {
     try {
-        const {profilePic} =req.body
-        const userId = req.user._id
-        const user = await User.findById(userId)
+        const { profilePic } = req.body;
+        const userId = req.user.userId;
+
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        const uploadResponse =await cloudinary.uploader.upload(profilePic);
-        const updatedUser = await User.findByIdAndUpdate(userId, {
-            profilePic: uploadResponse.secure_url,
-        }, { new: true });
-        return res.status(200).json(updatedUser);
 
+        const uploadResponse = await cloudinaryV2.uploader.upload(profilePic);
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                profilePic: uploadResponse.secure_url,
+            },
+            { new: true }
+        ).select("-password");
+
+        res.status(200).json({ user: updatedUser });
     } catch (error) {
         console.log("Update profile error:", error);
         res.status(500).json({ message: "Internal server error" });
-        
     }
-}
+};
+
 export const checkAuth = async (req, res) => {
     try {
-        const userId = req.user._id
-        const user = await User.findById(userId).select("-password")
+        const user = await User.findById(req.user.userId).select("-password");
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        return res.status(200).json(user);
+        res.status(200).json({ user });
     } catch (error) {
-        console.log("Check auth error: ", error.message);
+        console.log("Error in checkAuth controller:", error.message);
         res.status(500).json({ message: "Internal server error" });
-        
     }
-}
+};

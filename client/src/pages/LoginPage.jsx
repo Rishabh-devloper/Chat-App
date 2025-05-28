@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuthStore } from "../store/useAuthStore";
+import useAuthStore from "../store/useAuthStore";
 import AuthImagePattern from "../components/AuthImagePattern";
 import { Link } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare } from "lucide-react";
@@ -10,11 +10,15 @@ const LoginPage = () => {
     email: "",
     password: "",
   });
-  const { login, isLoggingIn } = useAuthStore();
+  const { login, isLoading } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    login(formData);
+    try {
+      await login(formData);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
   };
 
   return (
@@ -49,7 +53,7 @@ const LoginPage = () => {
                 <input
                   type="email"
                   className={`input input-bordered w-full pl-10`}
-                  placeholder="you@example.com"
+                  placeholder="Enter your email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
@@ -85,8 +89,8 @@ const LoginPage = () => {
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isLoggingIn}>
-              {isLoggingIn ? (
+            <button type="submit" className="btn btn-primary w-full" disabled={isLoading}>
+              {isLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Loading...
@@ -109,10 +113,12 @@ const LoginPage = () => {
       </div>
 
       {/* Right Side - Image/Pattern */}
-      <AuthImagePattern
-        title={"Welcome back!"}
-        subtitle={"Sign in to continue your conversations and catch up with your messages."}
-      />
+      <div className="hidden lg:block">
+        <AuthImagePattern
+          title={"Welcome back!"}
+          subtitle={"Sign in to continue your conversations and catch up with your messages."}
+        />
+      </div>
     </div>
   );
 };

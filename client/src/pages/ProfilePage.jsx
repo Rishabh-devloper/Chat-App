@@ -1,22 +1,38 @@
 import React, { useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore';
 import { Camera, Mail, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const ProfilePage = () => {
-  const { authUser, isUpdatingProfile, updateProfile } = useAuthStore();
+  const { authUser, updateProfile, isLoading } = useAuthStore();
   const [selectedImage, setSelectedImage] = useState('')
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      return toast.error('Please select an image file');
+    }
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      return toast.error('Image size should be less than 5MB');
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
       const base64Image = reader.result;
       setSelectedImage(base64Image);
-      await updateProfile({ profilePic: base64Image });
+      try {
+        await updateProfile({ profilePic: base64Image });
+      } catch (error) {
+        console.error('Failed to update profile:', error);
+        setSelectedImage('');
+      }
     };
-
   }
   return (
     <div className="h-screen pt-20">
@@ -30,11 +46,11 @@ const ProfilePage = () => {
           {/* Profile Picture */}
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <img src={selectedImage ||authUser.profilePic || "/avatar.png"} alt=" profile" className="w-24 h-24 rounded-full" />
+              <img src={selectedImage || authUser?.profilePic || "/avatar.png"} alt=" profile" className="w-24 h-24 rounded-full object-cover" />
               <label
                 htmlFor="avatar-upload"
                 className={`absolute bottom-0 right-0 bg-base-content hover:scale-105 rounded-full p-1 cursor-pointer
-                transition-all hover:bg-base-200 ${isUpdatingProfile ? "animate-pulse pointer-events-none" : ""}`}
+                transition-all hover:bg-base-200 ${isLoading ? "animate-pulse pointer-events-none" : ""}`}
               >
                 <Camera className="w-5 h-5 text-base-200" />
                 <input
@@ -43,13 +59,13 @@ const ProfilePage = () => {
                   accept="image/*"
                   className="hidden"
                   onChange={handleImageUpload}
-                  disabled={isUpdatingProfile}
+                  disabled={isLoading}
                 />
 
               </label>
             </div>
             <p className="text-sm text-zinc-400">
-              {isUpdatingProfile ? "Uploading.." : "Click to change your profile picture"}
+              {isLoading ? "Uploading..." : "Click to change your profile picture"}
             </p>
 
           </div>
@@ -64,7 +80,7 @@ const ProfilePage = () => {
               <input
                 type="text"
                 className="input input-bordered w-full"
-                value={authUser.fullName}
+                value={authUser?.fullName || ''}
                 readOnly
               />
             </div>
@@ -77,7 +93,7 @@ const ProfilePage = () => {
               <input
                 type="text"
                 className="input input-bordered w-full"
-                value={authUser.email}
+                value={authUser?.email || ''}
                 readOnly
               />
             </div>
@@ -89,10 +105,10 @@ const ProfilePage = () => {
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between py-2  border-b border-zinc-700">
                 <span>Member Since</span>
-                <span>{authUser.createdAt.split('T')[0]}</span>
+                <span>{authUser?.createdAt?.split('T')[0] || 'N/A'}</span>
               </div>
               <div className="flex items-center justify-between py-2">
-                <span>Active</span>
+                <span>Status</span>
                 <span className="text-green-500">Active</span>
               </div>
             </div>
