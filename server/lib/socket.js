@@ -7,22 +7,18 @@ const server = createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:5173',
-
+        origin: process.env.NODE_ENV === "production" 
+            ? "https://chat-app-eight-vert.vercel.app"
+            : "http://localhost:5173",
+        credentials: true
     }
 })
-
-
-
 
 // used for storing online users
 const userSocketMap = {}
 export const getReciverSocketId = (userId) => {
     return userSocketMap[userId];
 }
-
-
-
 
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
